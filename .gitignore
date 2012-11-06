@@ -17,3 +17,4 @@ media/
 moveit/nsms
 moveit/settings.py
 config/
+*py.protected
