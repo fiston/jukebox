@@ -10,15 +10,15 @@ import datetime
 
 
 class UserForgetForm(forms.Form):
-     email = forms.CharField(label="Your Email",)
+     email = forms.EmailField(label="Your Email",)
 
 class UserRecoverForm(UserForm):
-     new_password = forms.CharField(label="New Password", widget=forms.PasswordInput, required=True)
-     confirm_new_password = forms.CharField(label="Confirm new Password", widget=forms.PasswordInput, required=True)
+     new_password = forms.CharField(label="New Password", widget=forms.PasswordInput, required=True, help_text="You can reset your password by entering a new password here.")
+     confirm_new_password = forms.CharField(label="Confirm new Password", widget=forms.PasswordInput, required=True, help_text="Confirm your new password by entering exactly the new password here.")
      
      def clean_confirm_new_password(self):
         if(not self.cleaned_data['confirm_new_password'] and self.cleaned_data['new_password']):
-            raise forms.ValidationError("Confirm the new password by filling the this field")
+            raise forms.ValidationError("Confirm your new password by entering it here")
 
         if(self.cleaned_data['new_password'] != self.cleaned_data['confirm_new_password']):
             raise forms.ValidationError("New password doesn't match with its confirmation")
@@ -54,7 +54,7 @@ class UserCRUDL(UserCRUDL):
      class Forget(SmartFormView):
           form_class = UserForgetForm
           permission = None
-          success_message = "User Registered Successfully."
+          success_message = "An Email has beeen sent to your account."
           success_url = "users.user_login"
           fields = ('email', )
 
@@ -63,20 +63,17 @@ class UserCRUDL(UserCRUDL):
 
           def form_valid(self, form):
                email = form.cleaned_data['email']
-               if email:
-                    try:
-                         user = User.objects.get(email=email)
+               try:
+                    user = User.objects.get(email=email)
+                    
+                    RecoveryToken.objects.filter(user=user).delete()
+                    token = ''.join(random.choice(string.ascii_uppercase + string.digits) for x in range(32))
+                    RecoveryToken.objects.create(token=token,user=user)
+                         
+                    user.email_user("Password Recover mail", "this message is containing the link to recover your password \n http://%s/users/user/recover/%s/" % (self.request.META['SERVER_NAME'],token),"website@klab.rw")
+               except:
 
-                         if user:
-                              RecoveryToken.objects.filter(email=email).delete()
-                              token = ''.join(random.choice(string.ascii_uppercase + string.digits) for x in range(32))
-                              RecoveryToken.objects.create(token=token,email=email)
-                              
-
-                              user.email_user("Password Recover mail", "this message is containing the link to recover your password \n http://%s/users/user/recover/%s/" % (self.request.META['SERVER_NAME'],token),"website@klab.rw")
-                    except:
-
-                         send_mail('Password Recover', "you have asked to recover your password but you do not have an account on our website", 'website@klab.rw', [email], fail_silently=False)
+                    send_mail('Password Recover', "you have asked to recover your password but you do not have an account on our website", 'website@klab.rw', [email], fail_silently=False)
               
                messages.success(self.request, self.derive_success_message())
                return super(UserCRUDL.Forget, self).form_valid(form)
@@ -87,16 +84,9 @@ class UserCRUDL(UserCRUDL):
           success_message = "User Password Updated Successfully. Now you can login using the new password."
           success_url = '@users.user_login'
           fields = ('new_password', 'confirm_new_password')
-
-          field_config = {
-               'new_password': dict(help="You can reset your password by entering a new password here."),
-               'confirm_new_password': dict(help="Confirm your new password by entering exactly the new password here."),
-               }
-
-          def derive_title(self):
-               return "Reset your Password"
+          title = "Reset your Password"
 
           def get_object(self, queryset=None):
                token = self.kwargs.get('token')
-               token_obj= RecoveryToken.objects.get(token=token)
-               return User.objects.get(email=token_obj.email)
+               recovery_token= RecoveryToken.objects.get(token=token)
+               return User.objects.get(email=recovery_token.email)
