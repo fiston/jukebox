@@ -72,13 +72,12 @@ class UserCRUDL(UserCRUDL):
                     token = ''.join(random.choice(string.ascii_uppercase + string.digits) for x in range(32))
                     RecoveryToken.objects.create(token=token,user=user)
                     email_template = loader.get_template('smartmin/users/user_email.txt')
-                    context = Context({'website': 'http://%s' % self.request.META['HTTP_HOST'],
-                                       'link': 'http://%s/users/user/recover/%s/' % (self.request.META['HTTP_HOST'],token),
-                                       })
+                    context = Context(dict(website='http://%s' % self.request.META['HTTP_HOST'],
+                                       link='http://%s/users/user/recover/%s/' % (self.request.META['HTTP_HOST'],token)))
                     user.email_user("Password Recover Request Mail", email_template.render(context) ,"website@klab.rw")
                except:
                     email_template = loader.get_template('smartmin/users/no_user_email.txt')
-                    context = Context({'website': self.request.META['HTTP_HOST'],})
+                    context = Context(dict(website=self.request.META['HTTP_HOST']))
                     send_mail('Invalid Password Recover Request', email_template.render(context), 'website@klab.rw', [email], fail_silently=False)
               
                messages.success(self.request, self.derive_success_message())
@@ -95,4 +94,4 @@ class UserCRUDL(UserCRUDL):
           def get_object(self, queryset=None):
                token = self.kwargs.get('token')
                recovery_token= RecoveryToken.objects.get(token=token)
-               return User.objects.get(id=recovery_token.user.id)
+               return recovery_token.user
