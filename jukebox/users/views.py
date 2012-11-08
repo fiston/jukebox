@@ -8,6 +8,8 @@ import random
 import string
 import datetime 
 
+from django.template import loader, Context
+
 
 class UserForgetForm(forms.Form):
      email = forms.EmailField(label="Your Email",)
@@ -69,11 +71,15 @@ class UserCRUDL(UserCRUDL):
                     RecoveryToken.objects.filter(user=user).delete()
                     token = ''.join(random.choice(string.ascii_uppercase + string.digits) for x in range(32))
                     RecoveryToken.objects.create(token=token,user=user)
-                         
-                    user.email_user("Password Recover mail", "this message is containing the link to recover your password \n http://%s/users/user/recover/%s/" % (self.request.META['SERVER_NAME'],token),"website@klab.rw")
+                    email_template = loader.get_template('smartmin/users/user_email.txt')
+                    context = Context({'website': 'http://%s' % self.request.META['HTTP_HOST'],
+                                       'link': 'http://%s/users/user/recover/%s/' % (self.request.META['HTTP_HOST'],token),
+                                       })
+                    user.email_user("Password Recover Request Mail", email_template.render(context) ,"website@klab.rw")
                except:
-
-                    send_mail('Password Recover', "you have asked to recover your password but you do not have an account on our website", 'website@klab.rw', [email], fail_silently=False)
+                    email_template = loader.get_template('smartmin/users/no_user_email.txt')
+                    context = Context({'website': self.request.META['HTTP_HOST'],})
+                    send_mail('Invalid Password Recover Request', email_template.render(context), 'website@klab.rw', [email], fail_silently=False)
               
                messages.success(self.request, self.derive_success_message())
                return super(UserCRUDL.Forget, self).form_valid(form)
@@ -89,4 +95,4 @@ class UserCRUDL(UserCRUDL):
           def get_object(self, queryset=None):
                token = self.kwargs.get('token')
                recovery_token= RecoveryToken.objects.get(token=token)
-               return User.objects.get(email=recovery_token.email)
+               return User.objects.get(id=recovery_token.user.id)
